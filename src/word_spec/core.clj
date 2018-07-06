@@ -1,42 +1,52 @@
 (ns word-spec.core
-  (:require [clojure.spec.alpha :as s]))
+  (:require
+    [clojure.spec.alpha :as s]
+    [orchestra.spec.test :as st]))
 
 (s/def ::newlines (s/+ #{\newline}))
 
-(s/def ::word (s/+ char?))
-(s/def ::sentence (s/* (s/spec ::word)))
-(s/def ::paragraph (s/* (s/spec ::sentence)))
-(s/def ::document (s/* (s/spec ::paragraph)))
-(s/def ::arg-word (s/cat :s (s/spec ::word)))
+(s/def ::word (s/or :s (s/+ char?) :s string?))
+(s/def ::word-ret (s/keys :req [::word]))
 
-(s/fdef parse-sentence :ars ::arg-word :ret ::sentence)
-(s/fdef parse-paragraph :args ::arg-word :ret ::paragraph)
-(s/fdef parse :args (s/cat :s (s/or :s ::word :s string?)) :ret ::document)
+(s/def ::sentence (s/* (s/spec ::word-ret)))
+(s/def ::sentence-ret (s/keys :req [::sentence]))
+
+(s/def ::paragraph (s/* (s/spec ::sentence-ret)))
+(s/def ::paragraph-ret (s/keys :req [::paragraph]))
+
+(s/def ::document (s/* (s/spec ::paragraph-ret)))
+(s/def ::document-ret (s/keys :req [::document]))
+
+(s/def ::arg-word (s/cat :s (s/spec ::word)))
 
 (defn partition-remove [s character]
   (->> (partition-by #{character} s)
        (remove #(some #{character} %))))
 
+(defn parse-word [s]
+  {::word (apply str s)})
+
 (defn parse-sentence [s]
-  (partition-remove s \space))
+  {::sentence (map parse-word (partition-remove s \space))})
 
 (defn parse-paragraph [s]
-  (map parse-sentence (partition-remove s \.)))
+  {::paragraph (map parse-sentence (partition-remove s \.))})
 
 (defn parse [s]
-  (map parse-paragraph (partition-remove (seq s) \newline)))
+  {::document (map parse-paragraph (partition-remove s \newline))})
 
-(stest/instrument)
+;(fn [x] (prn (type x) x) true) :fn (constantly true)
+(s/fdef parse-word :args ::arg-word :ret ::word-ret)
+(s/fdef parse-sentence :args ::arg-word :ret ::sentence-ret)
+(s/fdef parse-paragraph :args ::arg-word :ret ::paragraph-ret)
+(s/fdef parse :args ::arg-word :ret ::document-ret)
+
+(st/instrument)
 
 (comment
-  (require '[clojure.spec.test.alpha :as stest])
 
   (parse "Hello Clojure.\nHello Spec.  How are you?")
-  (parse 8)
 
-  (s/valid? ::word [\a])
-  (s/valid? ::sentence [[\a]])
-  (s/valid? ::paragraph [[[\a]]])
-  (s/valid? ::document [[[[\a]]]])
+  (parse 8)
 
   )

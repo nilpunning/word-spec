@@ -1,5 +1,5 @@
 {:deps
- {}
+ {orchestra {:mvn/version "2017.11.12-1"}}
 
  :aliases
  {:test
