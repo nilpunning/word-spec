@@ -1,45 +1,40 @@
 (ns word-spec.core
   (:require
     [clojure.spec.alpha :as s]
-    [orchestra.spec.test :as st]))
+    [orchestra.core :refer [defn-spec]]
+    [orchestra.spec.test :as st]
+    [expound.alpha :as expound]))
+
+(set! s/*explain-out* expound/printer)
 
 (s/def ::newlines (s/+ #{\newline}))
 
 (s/def ::word (s/or :s (s/+ char?) :s string?))
-(s/def ::word-ret (s/keys :req [::word]))
+(s/def ::word-map (s/keys :req [::word]))
 
-(s/def ::sentence (s/* (s/spec ::word-ret)))
-(s/def ::sentence-ret (s/keys :req [::sentence]))
+(s/def ::sentence (s/* ::word-map))
+(s/def ::sentence-map (s/keys :req [::sentence]))
 
-(s/def ::paragraph (s/* (s/spec ::sentence-ret)))
-(s/def ::paragraph-ret (s/keys :req [::paragraph]))
+(s/def ::paragraph (s/* ::sentence-map))
+(s/def ::paragraph-map (s/keys :req [::paragraph]))
 
-(s/def ::document (s/* (s/spec ::paragraph-ret)))
-(s/def ::document-ret (s/keys :req [::document]))
-
-(s/def ::arg-word (s/cat :s (s/spec ::word)))
+(s/def ::arg-word (s/cat :s ::word))
 
 (defn partition-remove [s character]
   (->> (partition-by #{character} s)
        (remove #(some #{character} %))))
 
-(defn parse-word [s]
-  {::word (apply str s)})
+(defn-spec parse-word ::word-map [w ::word]
+  {::word (apply str w)})
 
-(defn parse-sentence [s]
-  {::sentence (map parse-word (partition-remove s \space))})
+(defn-spec parse-sentence ::sentence-map [w ::word]
+  {::sentence (map parse-word (partition-remove w \space))})
 
-(defn parse-paragraph [s]
-  {::paragraph (map parse-sentence (partition-remove s \.))})
+(defn-spec parse-paragraph ::paragraph-map [w ::word]
+  {::paragraph (map parse-sentence (partition-remove w \.))})
 
-(defn parse [s]
-  {::document (map parse-paragraph (partition-remove s \newline))})
-
-;(fn [x] (prn (type x) x) true) :fn (constantly true)
-(s/fdef parse-word :args ::arg-word :ret ::word-ret)
-(s/fdef parse-sentence :args ::arg-word :ret ::sentence-ret)
-(s/fdef parse-paragraph :args ::arg-word :ret ::paragraph-ret)
-(s/fdef parse :args ::arg-word :ret ::document-ret)
+(defn-spec parse (s/* ::paragraph-map) [w ::word]
+  (map parse-paragraph (partition-remove w \newline)))
 
 (st/instrument)
 
@@ -49,4 +44,14 @@
 
   (parse 8)
 
+  (s/valid? (s/alt :w (s/cat :k #{::word} :v ::word)) [::word "hi"])
+
+  (s/valid? (s/keys :req [::word]) {::word "hi"})
+  (s/valid? (s/keys :req [::word]) {::word 8})
+
+  (s/valid? (s/keys) {::word 4})
+
+
+  (s/valid? (s/* string?) 8)
+  (s/valid? (s/* ::word) 3)
   )
